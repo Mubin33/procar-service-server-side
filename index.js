@@ -23,6 +23,7 @@ const client = new MongoClient(uri, {
 async function run() {
     try {
       const serviceCollection = client.db("services").collection("service");
+      const bookedCollection = client.db("services").collection("booked");
 
       app.get('/service', async(req, res)=>{
         const cursor = serviceCollection.find()
@@ -39,6 +40,20 @@ async function run() {
         let service = req.body
         console.log(service)
         let result = await serviceCollection.insertOne(service)
+        res.send(result)
+      })
+
+
+      // booked
+      app.get('/booked', async(req, res)=>{
+        const cursor = bookedCollection.find()
+        const result = await cursor.toArray()
+        res.send(result)
+      }) 
+      app.post('/booked', async(req, res)=>{
+        let booked = req.body
+        console.log(booked)
+        let result = await bookedCollection.insertOne(booked)
         res.send(result)
       })
   
