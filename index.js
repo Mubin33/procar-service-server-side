@@ -23,7 +23,19 @@ const client = new MongoClient(uri, {
 async function run() {
     try {
       const serviceCollection = client.db("services").collection("service");
-  
+
+      app.get('/service', async(req, res)=>{
+        const cursor = serviceCollection.find()
+        const result = await cursor.toArray()
+        res.send(result)
+      })
+
+      app.post('/service', async(req, res)=>{
+        let service = req.body
+        console.log(service)
+        let result = await serviceCollection.insertOne(service)
+        res.send(result)
+      })
   
   
       // await client.connect();
