@@ -70,13 +70,29 @@ async function run() {
       })
 
       // service
-      app.get('/service', async(req, res)=>{
-        const email = req.query.email; 
-        let query = email ? { hr_email: email } : {} ; 
-        const cursor = serviceCollection.find(query)
-        const result = await cursor.toArray()
-        res.send(result)
-      })
+      app.get('/service', async (req, res) => {
+        try {
+            const { email, searchParams } = req.query;
+            let query = {};
+            
+            if (email) {
+                query.hr_email = email;
+            }
+            
+            // Search functionality
+            if (searchParams) {
+                query.name = { $regex: searchParams, $options: 'i' }; // case-insensitive search
+            }
+    
+            const cursor = serviceCollection.find(query);
+            const result = await cursor.toArray();
+            res.send(result);
+        } catch (error) {
+            console.error('Error fetching services:', error);
+            res.status(500).send({ message: 'Internal Server Error', error });
+        }
+    });
+    
       app.get("/service/:id", async (req, res) => {
         let id = req.params.id;
         const query = { _id: new ObjectId(id) };
@@ -99,8 +115,15 @@ async function run() {
 
 
       // booked
-      app.get('/booked', async(req, res)=>{
-        const cursor = bookedCollection.find()
+      app.get('/booked',verifyToken, async(req, res)=>{
+        const email = req.query.email; 
+        let query = email ? { bookedUserEmail: email } : {} ; 
+
+        if(req.user.email !== req.query.email){
+          res.status(403).send({ message: 'forbidden access' });
+      }
+
+        const cursor = bookedCollection.find(query)
         const result = await cursor.toArray()
         res.send(result)
       }) 
