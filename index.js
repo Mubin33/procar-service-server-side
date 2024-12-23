@@ -115,22 +115,66 @@ async function run() {
 
 
       // booked
-      app.get('/booked',verifyToken, async(req, res)=>{
+      app.get('/booked', verifyToken, async (req, res) => {
         const email = req.query.email; 
-        let query = email ? { bookedUserEmail: email } : {} ; 
+        const queryType = req.query.type; // Add a query parameter to specify the type of query
+    
+        if (!email) {
+            return res.status(400).send({ message: 'Email is required.' });
+        }
+    
+        // Check for forbidden access
+        if (req.user.email !== email) {
+            return res.status(403).send({ message: 'Forbidden access' });
+        }
+    
+        // Construct query based on type
+        let query = {};
+        if (queryType === 'bookedUser') {
+            query = { bookedUserEmail: email };
+        } else if (queryType === 'hr') {
+            query = { hr_email: email };
+        } else {
+            return res.status(400).send({ message: 'Invalid query type.' });
+        }
+    
+        try {
+            const cursor = bookedCollection.find(query);
+            const result = await cursor.toArray();
+            res.send(result);
+        } catch (error) {
+            console.error('Error fetching data:', error);
+            res.status(500).send({ message: 'Internal Server Error' });
+        }
+    });
 
-        if(req.user.email !== req.query.email){
-          res.status(403).send({ message: 'forbidden access' });
+
+    app.patch('/bid-status/:id', async(req, res)=>{
+      const id = req.params.id
+      const status = req.body
+      const filter = {_id: new ObjectId(id)}
+      const updated = {
+        $set:{status: status.status},
       }
-
-        const cursor = bookedCollection.find(query)
-        const result = await cursor.toArray()
-        res.send(result)
-      }) 
+      const result = await bookedCollection.updateOne(filter, updated)
+      res.send(result)
+    })
+     
       app.post('/booked', async(req, res)=>{
-        let booked = req.body
-        console.log(booked)
+        let booked = req.body 
+        // 
+        const query = {bookedUserEmail:booked.bookedUserEmail, serviceId: booked.serviceId}
+        const alreadyExist = await bookedCollection.findOne(query)
+        if(alreadyExist) return res.status(400).send({ message: 'You already bid booked this service' })
+        // 
         let result = await bookedCollection.insertOne(booked)
+
+        // 
+        const filter = {_id: new ObjectId(booked.serviceId)}
+        const update = {
+          $inc:{bid:1}
+        }
+        const updateBidCount = await serviceCollection.updateOne(filter, update)
         res.send(result)
       })
   
