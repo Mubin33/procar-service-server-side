@@ -69,20 +69,42 @@ async function run() {
         .send({success:true})
       })
 
-      // service
-      app.get('/service', async (req, res) => {
+
+
+
+      // service2
+      app.get('/service2', async (req, res) => {
         try {
             const { email, searchParams } = req.query;
+            let query = {}; 
+            
+            // Search functionality
+            if (searchParams) {
+                query.name = { $regex: searchParams, $options: 'i' }; // case-insensitive search
+            }
+    
+            const cursor = serviceCollection.find(query);
+            const result = await cursor.toArray();
+            res.send(result);
+        } catch (error) {
+            console.error('Error fetching services:', error);
+            res.status(500).send({ message: 'Internal Server Error', error });
+        }
+    });
+
+      // service
+      app.get('/service', verifyToken, async (req, res) => {
+        try {
+          const email = req.query.email; 
             let query = {};
             
             if (email) {
                 query.hr_email = email;
             }
             
-            // Search functionality
-            if (searchParams) {
-                query.name = { $regex: searchParams, $options: 'i' }; // case-insensitive search
-            }
+            if(req.user.email !== req.query.email){
+              res.status(403).send({ message: 'forbidden access' });
+          }
     
             const cursor = serviceCollection.find(query);
             const result = await cursor.toArray();
@@ -99,41 +121,103 @@ async function run() {
         const result = await serviceCollection.findOne(query);
         res.send(result);
       });
-      app.post('/service', async(req, res)=>{
-        let service = req.body
-        console.log(service)
-        let result = await serviceCollection.insertOne(service)
-        res.send(result)
-      })
-      app.put("/service/:id", async (req, res) => {
-        let id = req.params.id;
+      app.post('/service', async (req, res) => {
         let service = req.body;
-        let filter = { _id: new ObjectId(id) };
-        const option = { upsert: true };
-        const updateService = {
+    
+        try {
+            // Insert the service into the "service" collection
+            let result1 = await serviceCollection.insertOne(service);
+    
+            // Insert the same service into the "service2" collection
+            let result2 = await client.db("services").collection("service2").insertOne(service);
+    
+            res.send({
+                success: true,
+                message: "Service added successfully to both databases.",
+                result1,
+                result2
+            });
+        } catch (error) {
+            console.error('Error adding service:', error);
+            res.status(500).send({ message: "Failed to add service to both databases.", error });
+        }
+    });
+    
+    app.put("/service/:id", async (req, res) => {
+      const id = req.params.id;
+      const service = req.body;
+      const filter = { _id: new ObjectId(id) };
+      const updateService = {
           $set: {
-            photo: service.uPhoto,
-            name: service.uName,
-            city: service.uCity,
-            country: service.uCountry,
-            price: service.uPrice,
-            description: service.uDescription, 
+              photo: service.uPhoto,
+              name: service.uName,
+              city: service.uCity,
+              country: service.uCountry,
+              price: service.uPrice,
+              description: service.uDescription,
           },
-        };
-        const result = await serviceCollection.updateOne(
-          filter,
-          updateService,
-          option
-        );
-        res.send(result);
-      });
-      app.delete('/service/:id', async(req, res)=>{
-        let id = req.params.id;
-      console.log("delete", id);
-      const query = { _id: new ObjectId(id) };
-      const result = await serviceCollection.deleteOne(query);
-      res.send(result);
-      })
+      };
+      const options = { upsert: true };
+  
+      try {
+          // Update in the "service" collection
+          const result1 = await serviceCollection.updateOne(filter, updateService, options);
+  
+          // Update in the "service2" collection
+          const service2Collection = client.db("services").collection("service2");
+          const result2 = await service2Collection.updateOne(filter, updateService, options);
+  
+          res.send({
+              success: true,
+              message: "Service updated successfully in both databases.",
+              result1,
+              result2,
+          });
+      } catch (error) {
+          console.error("Error updating service:", error);
+          res.status(500).send({
+              success: false,
+              message: "Failed to update service in both databases.",
+              error,
+          });
+      }
+  });
+  
+      app.delete("/service/:id", async (req, res) => {
+        const id = req.params.id;
+        const filter = { _id: new ObjectId(id) };
+    
+        try {
+            // Delete from the "service" collection
+            const result1 = await serviceCollection.deleteOne(filter);
+    
+            // Delete from the "service2" collection
+            const service2Collection = client.db("services").collection("service2");
+            const result2 = await service2Collection.deleteOne(filter);
+    
+            if (result1.deletedCount > 0 && result2.deletedCount > 0) {
+                res.send({
+                    success: true,
+                    message: "Service deleted successfully from both databases.",
+                    result1,
+                    result2,
+                });
+            } else {
+                res.status(404).send({
+                    success: false,
+                    message: "Service not found in one or both databases.",
+                });
+            }
+        } catch (error) {
+            console.error("Error deleting service:", error);
+            res.status(500).send({
+                success: false,
+                message: "Failed to delete service from both databases.",
+                error,
+            });
+        }
+    });
+    
 
 
       // booked
