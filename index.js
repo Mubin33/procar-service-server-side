@@ -105,6 +105,28 @@ async function run() {
         let result = await serviceCollection.insertOne(service)
         res.send(result)
       })
+      app.put("/service/:id", async (req, res) => {
+        let id = req.params.id;
+        let service = req.body;
+        let filter = { _id: new ObjectId(id) };
+        const option = { upsert: true };
+        const updateService = {
+          $set: {
+            photo: service.uPhoto,
+            name: service.uName,
+            city: service.uCity,
+            country: service.uCountry,
+            price: service.uPrice,
+            description: service.uDescription, 
+          },
+        };
+        const result = await serviceCollection.updateOne(
+          filter,
+          updateService,
+          option
+        );
+        res.send(result);
+      });
       app.delete('/service/:id', async(req, res)=>{
         let id = req.params.id;
       console.log("delete", id);
