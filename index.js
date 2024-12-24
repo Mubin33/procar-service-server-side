@@ -8,7 +8,7 @@ const port = process.env.PORT || 5000;
 const cors = require("cors");
 
 app.use(cors({
-  origin:['http://localhost:5173'],
+  origin:['http://localhost:5173', 'https://serviceprojectbymubinb10a11.surge.sh'],
   credentials:true
 }));
 app.use(express.json());
@@ -56,7 +56,8 @@ async function run() {
         res
         .cookie('token', token,{
           httpOnly:true,
-          secure: false
+          secure: process.env.NODE_ENV === 'production', 
+          sameSite: process.env.NODE_ENV === 'production' ? "none" : "strict",
         })
         .send({success: true})
       })
@@ -64,7 +65,8 @@ async function run() {
         res
         .clearCookie('token',{
           httpOnly:true,
-          secure:false
+          secure:process.env.NODE_ENV === 'production', 
+          sameSite: process.env.NODE_ENV === 'production' ? "none" : "strict",
         })
         .send({success:true})
       })
@@ -266,23 +268,34 @@ async function run() {
       res.send(result)
     })
      
-      app.post('/booked', async(req, res)=>{
-        let booked = req.body 
-        // 
-        const query = {bookedUserEmail:booked.bookedUserEmail, serviceId: booked.serviceId}
-        const alreadyExist = await bookedCollection.findOne(query)
-        if(alreadyExist) return res.status(400).send({ message: 'You already bid booked this service' })
-        // 
-        let result = await bookedCollection.insertOne(booked)
-
-        // 
-        const filter = {_id: new ObjectId(booked.serviceId)}
-        const update = {
-          $inc:{bid:1}
-        }
-        const updateBidCount = await serviceCollection.updateOne(filter, update)
-        res.send(result)
-      })
+    app.post('/booked', async (req, res) => {
+      let booked = req.body;
+      // 
+      const query = { bookedUserEmail: booked.bookedUserEmail, serviceId: booked.serviceId };
+      const alreadyExist = await bookedCollection.findOne(query);
+      if (alreadyExist) return res.status(400).send({ message: 'You already bid booked this service' });
+      // 
+      let result = await bookedCollection.insertOne(booked);
+  
+      // Update `bid` count in `service` collection
+      const filter = { _id: new ObjectId(booked.serviceId) };
+      const update = {
+          $inc: { bid: 1 }
+      };
+      const updateBidCount = await serviceCollection.updateOne(filter, update);
+  
+      // Update `bid` count in `service2` collection
+      const service2Collection = client.db("services").collection("service2");
+      const updateBidCount2 = await service2Collection.updateOne(filter, update);
+  
+      res.send({
+          success: true,
+          result,
+          updateBidCount,
+          updateBidCount2
+      });
+  });
+  
   
   
       // await client.connect();
